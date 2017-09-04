@@ -1,0 +1,113 @@
+---
+title: "Machine Learning Project"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+### Executive summary
+
+This report contains the results of an analysis of test data assessing the correctness of performance of a weighlifting exercise, as measured by accelerometers attached on the belt, forearm, arm, and dumbell of 6 participants. The purpose was to establish whether the perfomance of an exercise in a particular way could be correctly interpreted on the basis of sensor data collected, and used for prediction.
+
+The data was analyzed using several models and a gradient boosting machine (GBM) model was selected for its efficiency and predictive power. The model successfully predicted all the variables in the test set provided.
+
+
+### Data analysis
+
+Data was obtained from the URLs provided.
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+```{r}
+setwd("~/Projects/practicalmachinelearning")
+train_URL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(train_URL, destfile = "train.csv")
+
+test_URL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(test_URL, destfile = "test.csv")
+
+training <- read.csv("train.csv")
+testing <- read.csv("test.csv")
+```
+
+The data contained in "training" data frame was analyzed by means of customary functions, such as str(), table(), summary(), etc. The analysis revealed a considerable number of nzv and empty columns.
+
+
+### Data cleaning
+
+The data set has 160 columns. The analysis revealed that many of these columns contain sparse data. Further anlaysis revealed that 60 of the columns represent a near zero variance, according to nearZeroVar function below:
+
+```{r}
+library(caret)
+nzv <- nearZeroVar(training, saveMetrics = TRUE)
+sum(nzv$nzv)
+```
+Further, many columns (67) contain  mostly NAs: 
+
+```{r}
+nzv$percentNA <- 0
+for (i in 1:160) nzv[i, 6] <- sum(is.na(training[ , i]))/nrow(training)
+table(nzv$percentNA)
+```
+
+Finally, the time series information and the participants names (first several columns) have been deemed irrelevant for the analysis.
+
+As a result, the nzv, na, as well as personal and time-related data have been removed. The resulting dataset contains 53 columns, including the independent variable (classe) and is ready for model analysis.
+
+```{r}
+# remove all empty (mostly) and NA columns, as well as fields 1:7 (subject, # name, etc.) not subject to analysis
+# 1:7, 12:36, 50:59, 69:83, 87:101, 103:112, 125:139, 141:150
+train_clean <- training[ , -c(1:7, 12:36, 50:59, 69:83, 87:101, 103:112, 125:139, 141:150)]
+```
+
+I considered the use of PCA, but decided against it as 52 predictors should be manageable for the model, plus it would be interesting to understand the impact of individual predictors.
+
+
+### Cross-validation
+
+In order to perform cross-validation I decided to use 3 k-folds. This has been achieved by means of trainControl function which creates an output that can be passed along as an argument to the model.
+
+```{r}
+set.seed(100)
+objControl <- trainControl(method = "cv", number = 3, repeats = 3, returnResamp = "none", classProbs = TRUE)
+```
+
+
+### Model selection, accuracy and out-of-sample error
+
+Four models have been considered and evaluated: gradient boosting machine (gbm), random forests (RF), extreme gradient boosting (xgbLinear), and neural networks (nnet). The first three models produced excellent results. RF and XGB actually predicted results with near 100% accuracy, but took a long time to run (RF took 10 min and XGB took >30 min). I have ended up choosing the gradient boosting machine (GBM) model for its efficiency; its  prediction accuracy was only slightly worse than that of RF and xgblinear, but sufficient. Neural networks was the fastest, but also the least accurate.
+
+The results of all four models are summarized below:
+
+* gbm: accuracy = 0.9606053,	kappa = 0.9501578		
+* rf:	accuracy = 0.9932220, kappa = 0.9914261		
+* xgbLinear: accuracy = 0.9967894, kappa = 0.9959391		
+* nnet:	accuracy = 0.7425844, kappa = 0.6743853
+
+Considering the use of cross-validation, the above results should provide a better representation of out-of-sample error than results where no cross validation has been applied.
+
+
+### Gbm model - results
+
+The selected model parameters are:
+
+```{r results = "hide"}
+sensorfit <- train(classe ~ ., data = train_clean, method = "gbm", trControl = objControl, preProc = c("center", "scale"))
+```
+
+The model output is provided below:
+```{r}
+print(sensorfit)
+head(summary(sensorfit))
+```
+
+The graph indicates the variables with the higest predictive power in the decreasing order: roll_belt, pitch_forearm, yaw_belt, etc.
+
+
+### Model application to the test set
+The model was used to predict the 20 variables in the testing set with 100% accuracy. 
+
+For the sake of completeness of the experiment, I ran the prediction for the other three models. RF and XGB also predicted the test set with 100% accuracy. The Neural Network model was less accurate, predicting 6 out of the 20 values wrong. 
+
+These results are consistent with the accuracy parameters identified above; whereby the three best models were expected to produce a close to perfect result (all had accuracy near 100%), especially for a test set this small, the neural network model was expected to be wrong at least 1 time out of 4. This is exactly what I have observed.
+
