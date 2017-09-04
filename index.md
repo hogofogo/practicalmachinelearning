@@ -1,10 +1,4 @@
----
-title: "Machine Learning Project"
-output:
-  html_document: 
-    keep_md: yes
-  pdf_document: default
----
+# Machine Learning Project
 
 ### Executive summary
 
@@ -19,7 +13,8 @@ Data was obtained from the URLs provided.
 
 The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
 
-```{r}
+
+```r
 setwd("~/Projects/practicalmachinelearning")
 train_URL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
 download.file(train_URL, destfile = "train.csv")
@@ -38,24 +33,48 @@ The data contained in "training" data frame was analyzed by means of customary f
 
 The data set has 160 columns. The analysis revealed that many of these columns contain sparse data. Further anlaysis revealed that 60 of the columns represent a near zero variance, according to nearZeroVar function below:
 
-```{r}
+
+```r
 library(caret)
+```
+
+```
+## Loading required package: lattice
+```
+
+```
+## Loading required package: ggplot2
+```
+
+```r
 nzv <- nearZeroVar(training, saveMetrics = TRUE)
 sum(nzv$nzv)
 ```
+
+```
+## [1] 60
+```
 Further, many columns (67) contain  mostly NAs: 
 
-```{r}
+
+```r
 nzv$percentNA <- 0
 for (i in 1:160) nzv[i, 6] <- sum(is.na(training[ , i]))/nrow(training)
 table(nzv$percentNA)
+```
+
+```
+## 
+##   0 
+## 160
 ```
 
 Finally, the time series information and the participants names (first several columns) have been deemed irrelevant for the analysis.
 
 As a result, the nzv, na, as well as personal and time-related data have been removed. The resulting dataset contains 53 columns, including the independent variable (classe) and is ready for model analysis.
 
-```{r}
+
+```r
 # remove all empty (mostly) and NA columns, as well as fields 1:7 (subject, # name, etc.) not subject to analysis
 # 1:7, 12:36, 50:59, 69:83, 87:101, 103:112, 125:139, 141:150
 train_clean <- training[ , -c(1:7, 12:36, 50:59, 69:83, 87:101, 103:112, 125:139, 141:150)]
@@ -68,7 +87,8 @@ I considered the use of PCA, but decided against it as 52 predictors should be m
 
 In order to perform cross-validation I decided to use 3 k-folds. This has been achieved by means of trainControl function which creates an output that can be passed along as an argument to the model.
 
-```{r}
+
+```r
 set.seed(100)
 objControl <- trainControl(method = "cv", number = 3, repeats = 3, returnResamp = "none", classProbs = TRUE)
 ```
@@ -92,14 +112,97 @@ Considering the use of cross-validation, the above results should provide a bett
 
 The selected model parameters are:
 
-```{r results = "hide"}
+
+```r
 sensorfit <- train(classe ~ ., data = train_clean, method = "gbm", trControl = objControl, preProc = c("center", "scale"))
 ```
 
+```
+## Loading required package: gbm
+```
+
+```
+## Loading required package: survival
+```
+
+```
+## 
+## Attaching package: 'survival'
+```
+
+```
+## The following object is masked from 'package:caret':
+## 
+##     cluster
+```
+
+```
+## Loading required package: splines
+```
+
+```
+## Loading required package: parallel
+```
+
+```
+## Loaded gbm 2.1.3
+```
+
+```
+## Loading required package: plyr
+```
+
 The model output is provided below:
-```{r}
+
+```r
 print(sensorfit)
+```
+
+```
+## Stochastic Gradient Boosting 
+## 
+## 19622 samples
+##    52 predictor
+##     5 classes: 'A', 'B', 'C', 'D', 'E' 
+## 
+## Pre-processing: centered (52), scaled (52) 
+## Resampling: Cross-Validated (3 fold) 
+## Summary of sample sizes: 13081, 13083, 13080 
+## Resampling results across tuning parameters:
+## 
+##   interaction.depth  n.trees  Accuracy   Kappa    
+##   1                   50      0.7544099  0.6886764
+##   1                  100      0.8202536  0.7724898
+##   1                  150      0.8528191  0.8137669
+##   2                   50      0.8557241  0.8171564
+##   2                  100      0.9059223  0.8809471
+##   2                  150      0.9317608  0.9136493
+##   3                   50      0.8941500  0.8660126
+##   3                  100      0.9413926  0.9258353
+##   3                  150      0.9605548  0.9500876
+## 
+## Tuning parameter 'shrinkage' was held constant at a value of 0.1
+## 
+## Tuning parameter 'n.minobsinnode' was held constant at a value of 10
+## Accuracy was used to select the optimal model using  the largest value.
+## The final values used for the model were n.trees = 150,
+##  interaction.depth = 3, shrinkage = 0.1 and n.minobsinnode = 10.
+```
+
+```r
 head(summary(sensorfit))
+```
+
+![](index_files/figure-html/unnamed-chunk-7-1.png)<!-- -->
+
+```
+##                                 var   rel.inf
+## roll_belt                 roll_belt 22.377305
+## pitch_forearm         pitch_forearm 11.353959
+## yaw_belt                   yaw_belt  8.263204
+## magnet_dumbbell_z magnet_dumbbell_z  6.328072
+## magnet_dumbbell_y magnet_dumbbell_y  5.489770
+## roll_forearm           roll_forearm  5.172737
 ```
 
 The graph indicates the variables with the higest predictive power in the decreasing order: roll_belt, pitch_forearm, yaw_belt, etc.
